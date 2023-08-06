@@ -86,6 +86,7 @@ private:
             mcloud->mptclout[line][circlept].type=20;
 	        point_size += 1;
         }
+	delete scan;
     }
 
 
