@@ -7,6 +7,7 @@
 #include <perception_msgs/msg/point_cluster.hpp>
 #include <perception_msgs/msg/point_cluster_vec.hpp>
 #include <rclcpp/serialization.hpp>
+#include <chrono>
 #include "PointCloudTool.hpp"
 #include "tool.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -23,6 +24,7 @@ public:
     }
     void execute_cluster(sensor_msgs::msg::PointCloud2::SharedPtr msg) {
         std::cout<<"load_msg:"<<msg->header.frame_id<<" ts:"<<msg->header.stamp.sec<<std::endl;
+        auto start = std::chrono::steady_clock::now();
         perception_msgs::msg::PointClusterVec point_cluster_vec;
 
 	    point_cluster_vec.header.set__stamp(msg->header.stamp);
@@ -37,6 +39,8 @@ public:
         //     std::cout<<"point: ("<<pc.x<<", "<<pc.y<<", "<<pc.z<<")"<<std::endl;
         // }
         std::cout<<"out_msg, ts:"<<point_cluster_vec.header.stamp.sec<<", frame_id: "<<point_cluster_vec.header.frame_id<<std::endl;
+        auto latency = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+        RCLCPP_INFO(this->get_logger(), "Cost Time %d ms", latency);
         pub->publish(point_cluster_vec);
 
     }
