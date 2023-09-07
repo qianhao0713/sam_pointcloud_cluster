@@ -16,6 +16,7 @@
 #include <visualization_msgs/msg/marker.hpp>
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Geometry>
+#include <iostream>
 
 
 
@@ -103,7 +104,7 @@ PointcloudTool()
 void NewGroundSeg(pointCloud *mcloud)
 {
   int Col=mcloud->circlelen;
-  int Row=90;
+  int Row=80;
   
   obstacle_map = cv::Mat::zeros(grid_dim_y,grid_dim_x,CV_8UC1);
   //for (int x = 0; x < grid_dim_x; x++){
@@ -112,8 +113,6 @@ void NewGroundSeg(pointCloud *mcloud)
   //  }
   //}
   memset(init, 0, sizeof init);
-
-#pragma omp parallel for
 for (size_t c = 0; c < Col; c++)
 {
     for (size_t l = 0; l < Row; l++)
@@ -200,6 +199,7 @@ for (size_t c = 0; c < Col; c++)
 void FilterBasedOnObstacleMap(pointCloud *mcloud)
 {
   //提取轮廓，较大的轮廓剔除，不再进行聚类处理
+  
   contours.clear();
 	hierarchy.clear();
 	cv::Mat grayImage;
@@ -238,7 +238,7 @@ void FilterBasedOnObstacleMap(pointCloud *mcloud)
      {
         if((obstacle_map.ptr<uchar>(grid_dim_y-y)[x])>0 && (temp.ptr<uchar>(grid_dim_y-y)[x])>0)
              obstacle_map.ptr<uchar>(grid_dim_y-y)[x]=50;
-     }  
+     }
 };
 //=========================================================================
 
@@ -246,7 +246,7 @@ void FilterBasedOnObstacleMap(pointCloud *mcloud)
 std::vector< std::vector< std::vector<pointX> > >  PointCloudCluster(pointCloud *mcloud)
 {
     int Col=mcloud->circlelen;
-    int Row=90;
+    int Row=80;
     pointX temppoint;
     std::vector<std::vector< std::vector<pointX> > > allcluster;
     std::vector< std::vector<pointX> >  allclusterrow;
@@ -261,7 +261,7 @@ std::vector< std::vector< std::vector<pointX> > >  PointCloudCluster(pointCloud 
       {
       if(!mcloud->mptclout[l][c].isused || mcloud->mptclout[l][c].type==1)
           continue;
-      if(mcloud->mptclout[l][c].type!=20)
+      if(mcloud->mptclout[l][c].type != 20)
           continue;
 
       x= mcloud->mptclout[l][c].x;
@@ -278,7 +278,7 @@ std::vector< std::vector< std::vector<pointX> > >  PointCloudCluster(pointCloud 
           xx=tempcluster[tempcluster.size()-1].x; 
           yy=tempcluster[tempcluster.size()-1].y;
           zz=tempcluster[tempcluster.size()-1].z;
-          if(sqrt((x-xx)*(x-xx)+(y-yy)*(y-yy)+(z-zz)*(z-zz))<0.5)
+          if(sqrt((x-xx)*(x-xx)+(y-yy)*(y-yy)+(z-zz)*(z-zz))<0.3)
           {
             tempcluster.push_back(temppoint);
             //sumx=sumx+x; sumy=sumy+y;
@@ -324,23 +324,27 @@ for(int k=0;k< allcluster->size();k++)
 }
 //-------------------------------------------------------------------------
 Clusters.clear();
+Clusters.reserve(LINE);
 for(int k=0; k < allcluster->size(); k++)  //128行
 {
   for(int n=0;n < allcluster->at(k).size(); n++)
     { 
       if(Clusters.size()==0)
       { 
-        OneCluster t=CreatOneCluster(allcluster->at(k)[n],k,n);
+        OneCluster t;
+        CreatOneCluster(t, allcluster->at(k)[n],k,n);
         Clusters.push_back(t);
         continue;
       }
          int N=FindCloseCluster(allcluster->at(k)[n],k,n);
          if(N==-1)
          {
-           OneCluster t=CreatOneCluster(allcluster->at(k)[n],k,n);
+           OneCluster t;
+           CreatOneCluster(t, allcluster->at(k)[n],k,n);
            Clusters.push_back(t);
          }else{
-         OneCluster temp= UpdataOneCluster(N,allcluster->at(k)[n],k,n);  
+         OneCluster temp;
+         UpdataOneCluster(temp, N,allcluster->at(k)[n],k,n);  
          Clusters[N]= temp;   
          }  
     }
@@ -448,20 +452,21 @@ double pointtoline(CvPoint3D32f pb,CvPoint3D32f pe,CvPoint3D32f po )
 
 };
 
-inline double point2point(CvPoint3D32f a,CvPoint3D32f b)
+inline double point2point(CvPoint3D32f& a,CvPoint3D32f& b)
 {	 
 	  return sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y) +(a.z-b.z)*(a.z-b.z));
 };
-inline double point2point(Point2f a,Point2f b)
+inline double point2point(Point2f& a,Point2f& b)
 {	 
 	  return sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));
 };
 //======================================================================
 
-OneCluster CreatOneCluster(vector<pointX> p,int n1,int n2)
+void CreatOneCluster(OneCluster& t, vector<pointX> p,int n1,int n2)
 {
-  OneCluster t;
+  // OneCluster t;
   t.size=p.size();
+  t.PointIndex.reserve(t.size);
   double sumx=0;double sumy=0;
   float x_min, x_max,z_min,z_max,y_min,y_max,xx,yy,zz;
   x_min=1000;x_max=-1000;  y_min=1000;y_max=-1000;z_min=1000;z_max=-1000;
@@ -489,15 +494,15 @@ OneCluster CreatOneCluster(vector<pointX> p,int n1,int n2)
 
    t.PointIndex.push_back(Point(n1,n2));
    t.id=clusterid;clusterid++;
-   return t;
+  //  return t;
 }
 
 //======================================================================
 int FindCloseCluster(vector<pointX> p,int n1,int n2)
 {
-  LineFuture temp=AllFuture[n1][n2];
+  LineFuture& temp=AllFuture[n1][n2];
   int num=-1;
-  double dmin=1.5;
+  double dmin=1.0;
   for(int n=0;n<Clusters.size();n++)
   {
     //double d1=point2point(temp.b,Clusters[n].pc);
@@ -516,10 +521,10 @@ return num;
 }
 
 //=====================================================================
-OneCluster UpdataOneCluster(int N,vector<pointX> p,int n1,int n2)
+void UpdataOneCluster(OneCluster& r, int N,vector<pointX> p,int n1,int n2)
 {
   OneCluster t=Clusters[N];
-  OneCluster r;
+  // OneCluster r;
   r.id=t.id;
   r.size=t.size+p.size();
   CvPoint3D32f pt=AllFuture[n1][n2].c;
@@ -552,7 +557,7 @@ OneCluster UpdataOneCluster(int N,vector<pointX> p,int n1,int n2)
       r.p3=cvPoint3D32f(t.pc.x+t.dx/2,t.pc.y-t.dy/2,0);
       r.p4=cvPoint3D32f(t.pc.x-t.dx/2,t.pc.y-t.dy/2,0);
   
-  return r;
+  // return r;
 }
 
 //====================================================================
@@ -690,7 +695,8 @@ void ReClustering(vector< vector< vector<pointX> > > *allcluster)
     vector<OneCluster> temp_Clusters;
       for (size_t n = 0; n < Clusters.size(); n++)
       {
-        if (ISNone[Clusters[n].id]==0  && ! ((Clusters[n].dx<0.9 && Clusters[n].dy<0.9 && Clusters[n].dz<0.9 )|| Clusters[n].zmax>2.7 || Clusters[n].size<20))
+        // if (ISNone[Clusters[n].id]==0  && ! ((Clusters[n].dx<0.9 && Clusters[n].dy<0.9 && Clusters[n].dz<0.9 )|| Clusters[n].zmax>2.7 || Clusters[n].size<20))
+        if (ISNone[Clusters[n].id]==0)
         {
           temp_Clusters.push_back(Clusters[n]);
         }
@@ -880,3 +886,4 @@ void ShowResultWithHull(visualization_msgs::msg::Marker &points,visualization_ms
 }
 
 };//类
+

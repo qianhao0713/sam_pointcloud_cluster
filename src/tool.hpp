@@ -1,13 +1,43 @@
 #ifndef _TOOL_PERCEPTION_H_
 #define _TOOL_PERCEPTION_H_
 
-#define LINE 128
-#define CIRCLEMAXLEN 2000
+#define LINE 80
+#define CIRCLEMAXLEN 1800
 #include <pcl/PCLHeader.h>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
+inline float atan_approximation(float x) {
+  float a1  =  0.99997726f;
+  float a3  = -0.33262347f;
+  float a5  =  0.19354346f;
+  float a7  = -0.11643287f;
+  float a9  =  0.05265332f;
+//   float a11 = -0.01172120f;
+
+  float x_sq = x*x;
+  return
+    x * (a1 + x_sq * (a3 + x_sq * (a5 + x_sq * (a7 + x_sq * a9))));
+}
+
+static float faster_atan2(float y, float x) {
+  float pi = M_PI;
+  float pi_2 = M_PI_2;
+    bool swap = fabs(x) < fabs(y);
+    float atan_input = (swap ? x : y) / (swap ? y : x);
+
+    // Approximate atan
+    float res = atan_approximation(atan_input);
+
+    // If swapped, adjust atan output
+    res = swap ? (atan_input >= 0.0f ? pi_2 : -pi_2) - res : res;
+    // Adjust the result depending on the input quadrant
+    if (x < 0.0f) {
+      res = (y >= 0.0f ? pi : -pi) + res;
+    }
+  return res;
+}
 
 class pt{
 public:
